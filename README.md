@@ -1,6 +1,6 @@
 # Deadly Premonition: The Director's Cut — FreeCam & HUD Hide ASI Mod
 
-[![Release](https://img.shields.io/badge/Release-v1.2.1-blue.svg)](#)
+[![Release](https://img.shields.io/badge/Release-v1.2.2-blue.svg)](#)
 [![Game](https://img.shields.io/badge/Game-Deadly%20Premonition%20The%20Director's%20Cut-crimson.svg)](#)
 [![Architecture](https://img.shields.io/badge/Architecture-x86%20(32--bit)-purple.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

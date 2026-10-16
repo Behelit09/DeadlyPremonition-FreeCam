@@ -318,6 +318,7 @@ static inline Vec3 Vec3_Mul(Vec3 a, float s) {
 #define ADDR_HUD_JE_SITE           0x005FFEB2  // 6-byte JE 0x00602AF7 in HUD render routine
 #define ADDR_HUD_ENABLE_FLAG       0x0147D88C  // Global HUD enable byte
 #define ADDR_RADAR_DRAW_FUNC       0x006541B0  // Map/Radar Render routine
+#define ADDR_CARNAVI_DRAW_FUNC     0x005F5DF0  // Vehicle Radar / Car Navi Render routine
 #define ADDR_RADAR_FLAG            0x01476A1C  // Global Radar display flag byte (0x01476978 + 0xA4)
 #define ADDR_2D_PASS_FLAG          0x0146FC38  // Internal 2D render pass active flag
 #define ADDR_D3D9_DEVICE_PTR       0x01480984  // Global IDirect3DDevice9* pointer
@@ -382,6 +383,7 @@ static int  ResetCameraToPlayer(void);
 extern "C" void __cdecl CameraHookWorker(void* pCamCtx);
 extern "C" __attribute__((naked)) void CameraHookAsm(void);
 extern "C" __attribute__((naked)) void RadarHookAsm(void);
+extern "C" __attribute__((naked)) void CarNaviHookAsm(void);
 
 // -----------------------------------------------------------------------------
 // ZachFix Interop & Menu State Detection
@@ -1075,18 +1077,43 @@ extern "C" __attribute__((naked)) void RadarHookAsm(void) {
         ".intel_syntax noprefix\n"
         "cmp dword ptr [_g_HUDHidden], 0\n"
         "jz 1f\n"
-        "test ecx, ecx\n"
-        "jz 1f\n"
-        "cmp dword ptr [ecx + 0x48], 0\n"  // Overworld Fullscreen Map mode
+        "mov edx, ecx\n"
+        "test edx, edx\n"
+        "jnz 2f\n"
+        "mov edx, 0x01476978\n"               // Static global Map Object
+        "2:\n"
+        "cmp dword ptr [edx + 0x14], 0\n"    // Mode 0: Overworld Fullscreen Map
         "je 1f\n"
-        "cmp dword ptr [ecx + 0x48], 3\n"  // Chapter / Interior Map mode
+        "cmp dword ptr [edx + 0x14], 1\n"    // Mode 1: Alternate Fullscreen Map
         "je 1f\n"
-        "ret\n"                            // Suppress in-game minimap/radar (Mode 4) & vehicle navi
+        "cmp dword ptr [edx + 0x14], 2\n"    // Mode 2: Overworld Map Tiles (MapFix)
+        "je 1f\n"
+        "cmp dword ptr [edx + 0x14], 3\n"    // Mode 3: Chapter / Interior Map
+        "je 1f\n"
+        "cmp dword ptr [edx + 0x14], 0x61\n" // Mode 0x61: Special Fullscreen Map
+        "je 1f\n"
+        "ret\n"                              // Suppress in-game minimap/radar (Mode 4) & blips/markers
         "1:\n"
         "sub esp, 0x10\n"
         "push ebx\n"
         "mov ebx, ecx\n"
         "mov eax, 0x006541B6\n"
+        "jmp eax\n"
+        ".att_syntax\n"
+    );
+}
+
+extern "C" __attribute__((naked)) void CarNaviHookAsm(void) {
+    __asm__ volatile (
+        ".intel_syntax noprefix\n"
+        "cmp dword ptr [_g_HUDHidden], 0\n"
+        "jz 1f\n"
+        "cmp dword ptr [esp + 8], 0x12\n"     // Action 0x12 = 2D Render pass
+        "jne 1f\n"
+        "ret\n"                               // Suppress car navi / vehicle radar rendering
+        "1:\n"
+        "sub esp, 0x674\n"
+        "mov eax, 0x005F5DF6\n"
         "jmp eax\n"
         ".att_syntax\n"
     );
@@ -1101,7 +1128,7 @@ static void DrawFreeCamSettingsWindow() {
         return;
     }
 
-    ImGui::Text("FreeCam v1.1.0 (Official Dear ImGui C++)");
+    ImGui::Text("FreeCam v1.2.2 (Official Dear ImGui C++)");
 
     if (ImGui::Button("Save to INI")) {
         SaveConfig();
@@ -1479,6 +1506,16 @@ static DWORD WINAPI HookThread(LPVOID lpParam) {
         VirtualProtect(pRadarHookSite, 6, oldProtect, &oldProtect);
     }
 
+    // Hook Car Navi / Vehicle Radar Render routine at 0x005F5DF0
+    unsigned char* pCarNaviHookSite = (unsigned char*)ADDR_CARNAVI_DRAW_FUNC;
+    if (VirtualProtect(pCarNaviHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        *pCarNaviHookSite = 0xE9;
+        int32_t rel = (int32_t)((uintptr_t)CarNaviHookAsm - ((uintptr_t)pCarNaviHookSite + 5));
+        *(int32_t*)(pCarNaviHookSite + 1) = rel;
+        pCarNaviHookSite[5] = 0x90;
+        VirtualProtect(pCarNaviHookSite, 6, oldProtect, &oldProtect);
+    }
+
     if (g_HUDHidden) {
         ApplyHUDState(1);
     }
@@ -1503,6 +1540,12 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvRe
             static const unsigned char origRadar[6] = { 0x83, 0xEC, 0x10, 0x53, 0x8B, 0xD9 };
             memcpy(pRadarHookSite, origRadar, 6);
             VirtualProtect(pRadarHookSite, 6, oldProtect, &oldProtect);
+        }
+        unsigned char* pCarNaviHookSite = (unsigned char*)ADDR_CARNAVI_DRAW_FUNC;
+        if (VirtualProtect(pCarNaviHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            static const unsigned char origCarNavi[6] = { 0x81, 0xEC, 0x74, 0x06, 0x00, 0x00 };
+            memcpy(pCarNaviHookSite, origCarNavi, 6);
+            VirtualProtect(pCarNaviHookSite, 6, oldProtect, &oldProtect);
         }
         if (g_Orig_DP_SetCursorPos) {
             if (VirtualProtect((void*)ADDR_IAT_SETCURSORPOS, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
