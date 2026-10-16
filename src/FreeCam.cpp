@@ -318,8 +318,8 @@ static inline Vec3 Vec3_Mul(Vec3 a, float s) {
 #define ADDR_HUD_JE_SITE           0x005FFEB2  // 6-byte JE 0x00602AF7 in HUD render routine
 #define ADDR_HUD_ENABLE_FLAG       0x0147D88C  // Global HUD enable byte
 #define ADDR_RADAR_DRAW_FUNC       0x006541B0  // Map/Radar Render routine
-#define ADDR_RADAR_FLAG            0x01476A1C  // Global Radar display flag byte
-#define ADDR_MENU_OPEN_FLAG        0x0146FC38  // Global Pause / Full-screen Map open byte
+#define ADDR_RADAR_FLAG            0x01476A1C  // Global Radar display flag byte (0x01476978 + 0xA4)
+#define ADDR_2D_PASS_FLAG          0x0146FC38  // Internal 2D render pass active flag
 #define ADDR_D3D9_DEVICE_PTR       0x01480984  // Global IDirect3DDevice9* pointer
 #define ADDR_ACTOR_MGR             0x00BD7670  // Global Actor Manager pointer
 #define ADDR_PLAYER_HANDLE         0x008A9BA4  // Global Player Actor Handle
@@ -1075,11 +1075,13 @@ extern "C" __attribute__((naked)) void RadarHookAsm(void) {
         ".intel_syntax noprefix\n"
         "cmp dword ptr [_g_HUDHidden], 0\n"
         "jz 1f\n"
-        "cmp byte ptr [0x0146FC38], 0\n"
-        "jnz 1f\n"
-        "cmp dword ptr [ecx + 0x14], 6\n"
+        "test ecx, ecx\n"
+        "jz 1f\n"
+        "cmp dword ptr [ecx + 0x48], 0\n"  // Overworld Fullscreen Map mode
         "je 1f\n"
-        "ret\n"
+        "cmp dword ptr [ecx + 0x48], 3\n"  // Chapter / Interior Map mode
+        "je 1f\n"
+        "ret\n"                            // Suppress in-game minimap/radar (Mode 4) & vehicle navi
         "1:\n"
         "sub esp, 0x10\n"
         "push ebx\n"

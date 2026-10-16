@@ -856,11 +856,13 @@ __attribute__((naked)) void RadarHookAsm(void) {
         ".intel_syntax noprefix\n"
         "cmp dword ptr [_g_HUDHidden], 0\n"
         "jz 1f\n"
-        "cmp byte ptr [0x0146FC38], 0\n"
-        "jnz 1f\n"
-        "cmp dword ptr [ecx + 0x14], 6\n"
+        "test ecx, ecx\n"
+        "jz 1f\n"
+        "cmp dword ptr [ecx + 0x48], 0\n"  // Overworld Fullscreen Map mode
         "je 1f\n"
-        "ret\n"
+        "cmp dword ptr [ecx + 0x48], 3\n"  // Chapter / Interior Map mode
+        "je 1f\n"
+        "ret\n"                            // Suppress in-game minimap/radar (Mode 4) & vehicle navi
         "1:\n"
         "sub esp, 0x10\n"
         "push ebx\n"

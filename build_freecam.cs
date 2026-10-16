@@ -15,10 +15,14 @@ class Program {
         psi.EnvironmentVariables["ZIG_GLOBAL_CACHE_DIR"] = cacheDir;
         psi.EnvironmentVariables["ZIG_LOCAL_CACHE_DIR"] = cacheDir;
 
-        var proc = Process.Start(psi);
+        var proc = new Process { StartInfo = psi };
+        var stderrBuilder = new System.Text.StringBuilder();
+        proc.ErrorDataReceived += (s, e) => { if (e.Data != null) stderrBuilder.AppendLine(e.Data); };
+        proc.Start();
+        proc.BeginErrorReadLine();
         stdout = proc.StandardOutput.ReadToEnd();
-        stderr = proc.StandardError.ReadToEnd();
         proc.WaitForExit();
+        stderr = stderrBuilder.ToString();
         return proc.ExitCode;
     }
 
