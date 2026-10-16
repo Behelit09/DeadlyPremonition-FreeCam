@@ -1,0 +1,19 @@
+# Build outputs & temporaries
+build/*.lib
+build/*.pdb
+build/*.exp
+*.obj
+*.pdb
+*.lib
+*.exp
+*.exe
+
+# Cache & compiler folders
+.zig-cache/
+.vs/
+*.user
+*.suo
+
+# Operating System files
+Thumbs.db
+[Dd]esktop.ini
