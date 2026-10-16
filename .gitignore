@@ -17,3 +17,6 @@ build/*.exp
 # Operating System files
 Thumbs.db
 [Dd]esktop.ini
+
+# Release packages
+*.zip
