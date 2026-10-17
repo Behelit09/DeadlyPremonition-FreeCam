@@ -12,9 +12,9 @@ Engineered to operate seamlessly alongside companion fixes like **ZachFix** (`F1
 
 ---
 
-## 📸 Features
+## Features
 
-- 🎥 **6-DOF Free Flying Camera (`F5`):**
+- **6-DOF Free Flying Camera (`F5`):**
   - Full 360-degree pitch, yaw, and roll-free camera flight.
   - Corrected for Deadly Premonition's mirrored projection matrix (`proj._11 * -1.0f`), guaranteeing natural **`A` = Strafe Left**, **`D` = Strafe Right**, and mouse right = turn right.
   - Multi-tiered flight speeds: Normal (`MoveSpeed`), Fast Boost (`Shift` or Gamepad `L3`, 3x speed), and Precision Slow (`Ctrl` / `Alt`, 0.25x speed).
@@ -22,18 +22,18 @@ Engineered to operate seamlessly alongside companion fixes like **ZachFix** (`F1
   - Dynamic **XInput Gamepad Support** (Left Stick fly/strafe, Right Stick look, Triggers/Bumpers elevate/descend, L3 turbo boost).
   - Custom Field of View (FOV) slider (30° to 120°).
 
-- 👁️ **2D HUD & Radar Suppression (`F4`):**
+- **2D HUD & Radar Suppression (`F4`):**
   - Instantly toggle all 2D in-game HUD graphics: Health/Stamina bars, mini-map, compass ring, player arrow, digital clock, weather icon, and ammo counters.
   - Suppresses in-vehicle navigation radar (`CARNAVI.XLY`) and cockpit UI.
   - Pure visual suppression that **never** freezes, pauses, or affects the gameplay camera or simulation loop.
   - Full-screen Overworld Map (`M`) and Pause Menu remain 100% accessible and undamaged.
 
-- ⚡ **York Teleportation:**
+- **York Teleportation:**
   - One-click **"Teleport York to Camera"** button in the mod menu.
   - Resolves York's live actor entity via the engine's internal Actor Manager (`0x00BD7670`) and Actor Resolver (`0x006C5FD0`), moving world position coordinates (`+0x58`) and collision bounds (`+0x6C`).
   - One-click **"Snap Camera to York"** button to instantly re-center the FreeCam behind the player.
 
-- 🖥️ **In-Game Dear ImGui Menu (`F9`):**
+- **In-Game Dear ImGui Menu (`F9`):**
   - Dark-themed Dear ImGui C++ overlay (`StyleColorsDark`) with 13px ProggyClean typography.
   - 5 organized tabs: **Camera**, **HUD**, **Gamepad**, **Diagnostics**, and **About**.
   - Interactive sliders, checkboxes, tooltips, draggable titlebar with collapse arrow, and bottom-right resize grip.
@@ -42,7 +42,7 @@ Engineered to operate seamlessly alongside companion fixes like **ZachFix** (`F1
 
 ---
 
-## ⌨️ Default Controls
+## Default Controls
 
 | Key / Input | Action |
 | :--- | :--- |
@@ -58,7 +58,7 @@ Engineered to operate seamlessly alongside companion fixes like **ZachFix** (`F1
 | **Ctrl / Alt** (Hold) | Precision Crawl (0.25x multiplier) |
 | **Right Mouse** (Hold) | Look / Fly freely while the `F9` settings menu is open |
 
-### 🎮 Gamepad Controls (XInput)
+### Gamepad Controls (XInput)
 
 | Control | Action |
 | :--- | :--- |
@@ -70,7 +70,7 @@ Engineered to operate seamlessly alongside companion fixes like **ZachFix** (`F1
 
 ---
 
-## 📦 Installation
+## Installation
 
 1. Make sure you have **Deadly Premonition: The Director's Cut** installed.
 2. Ensure you have an ASI Loader installed (e.g. `dinput8.dll` from [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) or included with [ZachFix](https://github.com/Kaldaien/ZachFix)).
@@ -89,7 +89,7 @@ Engineered to operate seamlessly alongside companion fixes like **ZachFix** (`F1
 
 ---
 
-## ⚙️ Configuration (`FreeCam.ini`)
+## Configuration (`FreeCam.ini`)
 
 All settings are hot-reloadable and configurable in `scripts/FreeCam.ini` or via the **Save to INI** button in the in-game menu:
 
@@ -121,7 +121,7 @@ MenuHeight=520
 
 ---
 
-## 🛠️ Building from Source
+## Building from Source
 
 ### Prerequisites
 - Windows 7/8/10/11
@@ -137,7 +137,7 @@ The compiled output will be generated in `FreeCam/build/FreeCam.asi` and automat
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
 Dear ImGui is licensed under the MIT License, Copyright (c) 2014-2026 Omar Cornut.
