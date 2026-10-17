@@ -181,7 +181,9 @@ static inline Vec3 Vec3_Mul(Vec3 a, float s) {
 #define ADDR_HUD_DRAW_FUNC         0x005FFE80  // 2D HUD Render routine
 #define ADDR_HUD_JE_SITE           0x005FFEB2  // 6-byte JE 0x00602AF7 in HUD render routine
 #define ADDR_HUD_ENABLE_FLAG       0x0147D88C  // Global HUD enable byte
-#define ADDR_RADAR_DRAW_FUNC       0x006541B0  // Map/Radar Render routine
+#define ADDR_RADAR_TASK_FUNC       0x00654490  // Radar/Minimap Task Callback (Phase 0x0F=Overlay, 0x12=Map)
+#define ADDR_RADAR_DRAW_FUNC       0x006541B0  // Radar/Minimap Render routine (Phase 0x12 handler)
+#define ADDR_RADAR_OVERLAY_FUNC    0x00665370  // Radar/Compass Overlay Render routine (Phase 0x0F handler)
 #define ADDR_CARNAVI_DRAW_FUNC     0x005F5DF0  // Vehicle Radar / Car Navi Render routine
 #define ADDR_RADAR_FLAG            0x01476A1C  // Global Radar display flag byte (0x01476978 + 0xA4)
 #define ADDR_MENU_OPEN_FLAG        0x0146FC38  // Global Pause / Full-screen Map open byte (1=open, 0=in-game)
@@ -849,35 +851,62 @@ __attribute__((naked)) void CameraHookAsm(void) {
     );
 }
 
-// -----------------------------------------------------------------------------
-// Naked Hook for Radar / Minimap Render Routine at 0x006541B0
-// -----------------------------------------------------------------------------
+
+
+__attribute__((naked)) void RadarTaskHookAsm(void) {
+    __asm__ volatile (
+        ".intel_syntax noprefix\n"
+        "cmp dword ptr [_g_HUDHidden], 0\n"
+        "jz 1f\n"
+        "cmp byte ptr [0x0146FC38], 0\n"        // ADDR_MENU_OPEN_FLAG: 1 if fullscreen map/pause menu is open
+        "jnz 1f\n"                              // Never suppress fullscreen map (MapFix / M key)
+        "mov eax, dword ptr [esp + 8]\n"        // param_2: message / task phase
+        "cmp eax, 0x0F\n"                       // Phase 15: 2D Radar overlay / compass / icons pass
+        "je 2f\n"
+        "cmp eax, 0x12\n"                       // Phase 18: 2D Minimap / radar map pass
+        "je 2f\n"
+        "jmp 1f\n"                             // Non-render phases (0=init, 1=update, 2=cleanup) still run
+        "2:\n"
+        "ret\n"                                 // Suppress radar rendering completely
+        "1:\n"
+        "movzx eax, byte ptr [esp + 8]\n"       // Stolen 5 bytes: 0F B6 44 24 08
+        "mov edx, 0x00654495\n"
+        "jmp edx\n"
+        ".att_syntax\n"
+    );
+}
+
 __attribute__((naked)) void RadarHookAsm(void) {
     __asm__ volatile (
         ".intel_syntax noprefix\n"
         "cmp dword ptr [_g_HUDHidden], 0\n"
         "jz 1f\n"
-        "mov edx, ecx\n"
-        "test edx, edx\n"
-        "jnz 2f\n"
-        "mov edx, 0x01476978\n"               // Static global Map Object
-        "2:\n"
-        "cmp dword ptr [edx + 0x14], 0\n"    // Mode 0: Overworld Fullscreen Map
-        "je 1f\n"
-        "cmp dword ptr [edx + 0x14], 1\n"    // Mode 1: Alternate Fullscreen Map
-        "je 1f\n"
-        "cmp dword ptr [edx + 0x14], 2\n"    // Mode 2: Overworld Map Tiles (MapFix)
-        "je 1f\n"
-        "cmp dword ptr [edx + 0x14], 3\n"    // Mode 3: Chapter / Interior Map
-        "je 1f\n"
-        "cmp dword ptr [edx + 0x14], 0x61\n" // Mode 0x61: Special Fullscreen Map
-        "je 1f\n"
-        "ret\n"                              // Suppress in-game minimap/radar (Mode 4) & blips/markers
+        "cmp byte ptr [0x0146FC38], 0\n"        // Fullscreen map / pause menu open?
+        "jnz 1f\n"                              // Do not suppress fullscreen map
+        "ret\n"                                 // Suppress in-game radar draw
         "1:\n"
-        "sub esp, 0x10\n"
+        "sub esp, 0x10\n"                       // Stolen 6 bytes: 83 EC 10 53 8B D9
         "push ebx\n"
         "mov ebx, ecx\n"
         "mov eax, 0x006541B6\n"
+        "jmp eax\n"
+        ".att_syntax\n"
+    );
+}
+
+__attribute__((naked)) void RadarOverlayHookAsm(void) {
+    __asm__ volatile (
+        ".intel_syntax noprefix\n"
+        "cmp dword ptr [_g_HUDHidden], 0\n"
+        "jz 1f\n"
+        "cmp byte ptr [0x0146FC38], 0\n"        // Fullscreen map / pause menu open?
+        "jnz 1f\n"                              // Do not suppress fullscreen map
+        "ret\n"                                 // Suppress compass / overlay draw
+        "1:\n"
+        "sub esp, 0x10\n"                       // Stolen 6 bytes: 83 EC 10 56 8B F1
+        "push esi\n"
+        "mov esi, ecx\n"
+        "mov eax, 0x00665376\n"
         "jmp eax\n"
         ".att_syntax\n"
     );
@@ -888,6 +917,8 @@ __attribute__((naked)) void CarNaviHookAsm(void) {
         ".intel_syntax noprefix\n"
         "cmp dword ptr [_g_HUDHidden], 0\n"
         "jz 1f\n"
+        "cmp byte ptr [0x0146FC38], 0\n"
+        "jnz 1f\n"
         "cmp dword ptr [esp + 8], 0x12\n"     // Action 0x12 = 2D Render pass
         "jne 1f\n"
         "ret\n"                               // Suppress car navi / vehicle radar rendering
@@ -1464,17 +1495,6 @@ static void UpdateUiInputOncePerFrame(void) {
         g_HudKeyLatched = 0;
     }
 
-    if (g_HUDHidden) {
-        volatile uint8_t* pSuppressFlag = (volatile uint8_t*)ADDR_GLOBAL_SUPPRESS_FLAG;
-        if (pSuppressFlag && *pSuppressFlag == 0) {
-            *pSuppressFlag = 1;
-        }
-        volatile uint8_t* pRadarFlag = (volatile uint8_t*)ADDR_RADAR_FLAG;
-        if (pRadarFlag && *pRadarFlag != 0) {
-            *pRadarFlag = 0;
-        }
-    }
-
     if (!g_MenuOpen) {
         g_DraggingWindow = 0;
         g_ResizingWindow = 0;
@@ -1655,7 +1675,7 @@ static void RenderModUI(IDirect3DDevice9* dev) {
     float curY = my + 30.0f;
 
     // 3. Display Name Header (Matches ImGui::TextUnformatted(kZachFixDisplayName) at ui_settings.cpp:2278)
-    DrawTextString(dev, contentX, curY, "FreeCam v1.2.2", IM_COL_TEXT);
+    DrawTextString(dev, contentX, curY, "FreeCam v1.2.3", IM_COL_TEXT);
     curY += 18.0f;
 
     // 4. Top Action Button Row (Matches ui_settings.cpp:2280-2295: Save to INI | Reload INI | Apply | F9 closes)
@@ -1917,7 +1937,7 @@ static void RenderModUI(IDirect3DDevice9* dev) {
         curY += 20.0f;
 
         DrawTextString(dev, contentX, curY,
-            "Deadly Premonition: The Director's Cut - FreeCam v1.2.2\n"
+            "Deadly Premonition: The Director's Cut - FreeCam v1.2.3\n"
             "In-game 6-DOF Free Camera, 2D HUD toggle, and York actor teleportation.",
             IM_COL_TEXT);
         curY += 40.0f;
@@ -1949,9 +1969,10 @@ typedef HRESULT (WINAPI *D3D9PresentFn)(IDirect3DDevice9* dev, const RECT* pSour
 typedef HRESULT (WINAPI *D3D9EndSceneFn)(IDirect3DDevice9* dev);
 typedef HRESULT (WINAPI *D3D9ResetFn)(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* pParams);
 
-static D3D9PresentFn  g_OrigPresent  = NULL;
-static D3D9EndSceneFn g_OrigEndScene = NULL;
-static D3D9ResetFn    g_OrigReset    = NULL;
+static D3D9PresentFn                g_OrigPresent                = NULL;
+static D3D9EndSceneFn               g_OrigEndScene               = NULL;
+static D3D9ResetFn                  g_OrigReset                  = NULL;
+static void**                       g_pD3DVtbl                   = NULL;
 
 static void RenderOverlayWithStateBlock(IDirect3DDevice9* dev) {
     if (!dev || !g_MenuOpen) return;
@@ -1974,14 +1995,14 @@ static HRESULT WINAPI HookEndScene(IDirect3DDevice9* dev) {
             RenderOverlayWithStateBlock(dev);
         }
     }
-    return g_OrigEndScene(dev);
+    return g_OrigEndScene ? g_OrigEndScene(dev) : D3D_OK;
 }
 
 static HRESULT WINAPI HookPresent(IDirect3DDevice9* dev, const RECT* pSourceRect, const RECT* pDestRect, HWND hDestWindowOverride, const RGNDATA* pDirtyRegion) {
     if (dev) {
         UpdateUiInputOncePerFrame();
     }
-    HRESULT hr = g_OrigPresent(dev, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
+    HRESULT hr = g_OrigPresent ? g_OrigPresent(dev, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion) : D3D_OK;
     g_UiUpdatedFrame = 0;
     g_UiRenderedFrame = 0;
     return hr;
@@ -1993,7 +2014,7 @@ static HRESULT WINAPI HookReset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* pP
         g_FontTexture = NULL;
     }
     g_FontAtlasReady = 0;
-    return g_OrigReset(dev, pParams);
+    return g_OrigReset ? g_OrigReset(dev, pParams) : D3D_OK;
 }
 
 // -----------------------------------------------------------------------------
@@ -2108,9 +2129,11 @@ static DWORD WINAPI HookThread(LPVOID lpParam) {
     void** vtbl = *(void***)dev;
     DWORD oldProtect;
     if (VirtualProtect(&vtbl[16], sizeof(void*) * 27, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        g_pD3DVtbl     = vtbl;
         g_OrigReset    = (D3D9ResetFn)vtbl[16];
         g_OrigPresent  = (D3D9PresentFn)vtbl[17];
         g_OrigEndScene = (D3D9EndSceneFn)vtbl[42];
+
         vtbl[16] = (void*)HookReset;
         vtbl[17] = (void*)HookPresent;
         vtbl[42] = (void*)HookEndScene;
@@ -2145,7 +2168,16 @@ static DWORD WINAPI HookThread(LPVOID lpParam) {
         VirtualProtect(pHookSite, 5, oldProtect, &oldProtect);
     }
 
-    // 7. Hook Radar / Minimap Render routine at 0x006541B0
+    // Hook Radar / Minimap Task Callback at 0x00654490
+    unsigned char* pRadarTaskHookSite = (unsigned char*)ADDR_RADAR_TASK_FUNC;
+    if (VirtualProtect(pRadarTaskHookSite, 5, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        *pRadarTaskHookSite = 0xE9; // JMP rel32
+        int32_t rel = (int32_t)((uintptr_t)RadarTaskHookAsm - ((uintptr_t)pRadarTaskHookSite + 5));
+        *(int32_t*)(pRadarTaskHookSite + 1) = rel;
+        VirtualProtect(pRadarTaskHookSite, 5, oldProtect, &oldProtect);
+    }
+
+    // Hook Radar / Minimap Render routine at 0x006541B0
     unsigned char* pRadarHookSite = (unsigned char*)ADDR_RADAR_DRAW_FUNC;
     if (VirtualProtect(pRadarHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
         *pRadarHookSite = 0xE9; // JMP rel32
@@ -2155,7 +2187,17 @@ static DWORD WINAPI HookThread(LPVOID lpParam) {
         VirtualProtect(pRadarHookSite, 6, oldProtect, &oldProtect);
     }
 
-    // 8. Hook Car Navi / Vehicle Radar Render routine at 0x005F5DF0
+    // Hook Radar / Compass Overlay Render routine at 0x00665370
+    unsigned char* pRadarOverlayHookSite = (unsigned char*)ADDR_RADAR_OVERLAY_FUNC;
+    if (VirtualProtect(pRadarOverlayHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        *pRadarOverlayHookSite = 0xE9; // JMP rel32
+        int32_t rel = (int32_t)((uintptr_t)RadarOverlayHookAsm - ((uintptr_t)pRadarOverlayHookSite + 5));
+        *(int32_t*)(pRadarOverlayHookSite + 1) = rel;
+        pRadarOverlayHookSite[5] = 0x90; // NOP
+        VirtualProtect(pRadarOverlayHookSite, 6, oldProtect, &oldProtect);
+    }
+
+    // 7. Hook Car Navi / Vehicle Radar Render routine at 0x005F5DF0
     unsigned char* pCarNaviHookSite = (unsigned char*)ADDR_CARNAVI_DRAW_FUNC;
     if (VirtualProtect(pCarNaviHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
         *pCarNaviHookSite = 0xE9; // JMP rel32
@@ -2165,7 +2207,7 @@ static DWORD WINAPI HookThread(LPVOID lpParam) {
         VirtualProtect(pCarNaviHookSite, 6, oldProtect, &oldProtect);
     }
 
-    // 9. Apply initial HUD state if configured
+    // 8. Apply initial HUD state if configured
     if (g_HUDHidden) {
         ApplyHUDState(1);
     }
@@ -2185,11 +2227,31 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     } else if (fdwReason == DLL_PROCESS_DETACH) {
         ApplyHUDState(0);
         DWORD oldProtect;
+        if (g_pD3DVtbl && g_OrigReset) {
+            if (VirtualProtect(&g_pD3DVtbl[16], sizeof(void*) * 27, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                g_pD3DVtbl[16] = (void*)g_OrigReset;
+                g_pD3DVtbl[17] = (void*)g_OrigPresent;
+                g_pD3DVtbl[42] = (void*)g_OrigEndScene;
+                VirtualProtect(&g_pD3DVtbl[16], sizeof(void*) * 27, oldProtect, &oldProtect);
+            }
+        }
+        unsigned char* pRadarTaskHookSite = (unsigned char*)ADDR_RADAR_TASK_FUNC;
+        if (VirtualProtect(pRadarTaskHookSite, 5, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            static const unsigned char origRadarTask[5] = { 0x0F, 0xB6, 0x44, 0x24, 0x08 };
+            memcpy(pRadarTaskHookSite, origRadarTask, 5);
+            VirtualProtect(pRadarTaskHookSite, 5, oldProtect, &oldProtect);
+        }
         unsigned char* pRadarHookSite = (unsigned char*)ADDR_RADAR_DRAW_FUNC;
         if (VirtualProtect(pRadarHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
             static const unsigned char origRadar[6] = { 0x83, 0xEC, 0x10, 0x53, 0x8B, 0xD9 };
             memcpy(pRadarHookSite, origRadar, 6);
             VirtualProtect(pRadarHookSite, 6, oldProtect, &oldProtect);
+        }
+        unsigned char* pRadarOverlayHookSite = (unsigned char*)ADDR_RADAR_OVERLAY_FUNC;
+        if (VirtualProtect(pRadarOverlayHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            static const unsigned char origRadarOverlay[6] = { 0x83, 0xEC, 0x10, 0x56, 0x8B, 0xF1 };
+            memcpy(pRadarOverlayHookSite, origRadarOverlay, 6);
+            VirtualProtect(pRadarOverlayHookSite, 6, oldProtect, &oldProtect);
         }
         unsigned char* pCarNaviHookSite = (unsigned char*)ADDR_CARNAVI_DRAW_FUNC;
         if (VirtualProtect(pCarNaviHookSite, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
