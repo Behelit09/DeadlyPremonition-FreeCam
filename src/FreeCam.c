@@ -860,7 +860,7 @@ __attribute__((naked)) void RadarTaskHookAsm(void) {
         "jz 1f\n"
         "cmp byte ptr [0x0146FC38], 0\n"        // ADDR_MENU_OPEN_FLAG: 1 if fullscreen map/pause menu is open
         "jnz 1f\n"                              // Never suppress fullscreen map (MapFix / M key)
-        "mov eax, dword ptr [esp + 8]\n"        // param_2: message / task phase
+        "movzx eax, byte ptr [esp + 8]\n"       // param_2: message / task phase (clean zero-extended byte)
         "cmp eax, 0x0F\n"                       // Phase 15: 2D Radar overlay / compass / icons pass
         "je 2f\n"
         "cmp eax, 0x12\n"                       // Phase 18: 2D Minimap / radar map pass
@@ -919,7 +919,7 @@ __attribute__((naked)) void CarNaviHookAsm(void) {
         "jz 1f\n"
         "cmp byte ptr [0x0146FC38], 0\n"
         "jnz 1f\n"
-        "cmp dword ptr [esp + 8], 0x12\n"     // Action 0x12 = 2D Render pass
+        "cmp byte ptr [esp + 8], 0x12\n"      // Action 0x12 = 2D Render pass (byte comparison)
         "jne 1f\n"
         "ret\n"                               // Suppress car navi / vehicle radar rendering
         "1:\n"
@@ -1675,7 +1675,7 @@ static void RenderModUI(IDirect3DDevice9* dev) {
     float curY = my + 30.0f;
 
     // 3. Display Name Header (Matches ImGui::TextUnformatted(kZachFixDisplayName) at ui_settings.cpp:2278)
-    DrawTextString(dev, contentX, curY, "FreeCam v1.2.3", IM_COL_TEXT);
+    DrawTextString(dev, contentX, curY, "FreeCam v1.2.4", IM_COL_TEXT);
     curY += 18.0f;
 
     // 4. Top Action Button Row (Matches ui_settings.cpp:2280-2295: Save to INI | Reload INI | Apply | F9 closes)
@@ -1937,7 +1937,7 @@ static void RenderModUI(IDirect3DDevice9* dev) {
         curY += 20.0f;
 
         DrawTextString(dev, contentX, curY,
-            "Deadly Premonition: The Director's Cut - FreeCam v1.2.3\n"
+            "Deadly Premonition: The Director's Cut - FreeCam v1.2.4\n"
             "In-game 6-DOF Free Camera, 2D HUD toggle, and York actor teleportation.",
             IM_COL_TEXT);
         curY += 40.0f;

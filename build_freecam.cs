@@ -15,14 +15,10 @@ class Program {
         psi.EnvironmentVariables["ZIG_GLOBAL_CACHE_DIR"] = cacheDir;
         psi.EnvironmentVariables["ZIG_LOCAL_CACHE_DIR"] = cacheDir;
 
-        var proc = new Process { StartInfo = psi };
-        var stderrBuilder = new System.Text.StringBuilder();
-        proc.ErrorDataReceived += (s, e) => { if (e.Data != null) stderrBuilder.AppendLine(e.Data); };
-        proc.Start();
-        proc.BeginErrorReadLine();
+        var proc = Process.Start(psi);
         stdout = proc.StandardOutput.ReadToEnd();
+        stderr = proc.StandardError.ReadToEnd();
         proc.WaitForExit();
-        stderr = stderrBuilder.ToString();
         return proc.ExitCode;
     }
 
@@ -59,7 +55,7 @@ class Program {
         // Step 1: Compile FreeCam_unity.cpp
         Console.WriteLine("[*] Compiling FreeCam_unity.cpp with Dear ImGui C++...");
         string compileArgs = string.Format(
-            "c++ -target x86-windows -fno-exceptions -fno-rtti -fno-threadsafe-statics -I\"{0}\" -I\"{1}\" -I\"{2}\" -O2 -shared \"{3}\" -o \"{4}\"",
+            "c++ -target x86-windows -nostdlib -fno-exceptions -fno-rtti -fno-threadsafe-statics -I\"{0}\" -I\"{1}\" -I\"{2}\" -O2 -shared \"{3}\" -o \"{4}\"",
             includeWin, imguiDir, backendsDir, srcFile, outAsi
         );
 

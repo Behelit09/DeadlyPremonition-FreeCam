@@ -86,7 +86,7 @@ float atan2f(float y, float x) {
     __asm__ volatile ("fpatan" : "=t"(r) : "0"(x), "u"(y) : "st(1)");
     return r;
 }
-float fabsf(float x) { return (x < 0.0f) ? -x : x; }
+// fabsf provided inline by math.h
 
 double atof(const char* s) {
     if (!s) return 0.0;
@@ -1084,7 +1084,7 @@ extern "C" __attribute__((naked)) void RadarTaskHookAsm(void) {
         "jz 1f\n"
         "cmp byte ptr [0x0146FC38], 0\n"        // ADDR_MENU_OPEN_FLAG: 1 if fullscreen map/pause menu is open
         "jnz 1f\n"                              // Never suppress fullscreen map (MapFix / M key)
-        "mov eax, dword ptr [esp + 8]\n"        // param_2: message / task phase
+        "movzx eax, byte ptr [esp + 8]\n"       // param_2: message / task phase (clean zero-extended byte)
         "cmp eax, 0x0F\n"                       // Phase 15: 2D Radar overlay / compass / icons pass
         "je 2f\n"
         "cmp eax, 0x12\n"                       // Phase 18: 2D Minimap / radar map pass
@@ -1143,7 +1143,7 @@ extern "C" __attribute__((naked)) void CarNaviHookAsm(void) {
         "jz 1f\n"
         "cmp byte ptr [0x0146FC38], 0\n"
         "jnz 1f\n"
-        "cmp dword ptr [esp + 8], 0x12\n"     // Action 0x12 = 2D Render pass
+        "cmp byte ptr [esp + 8], 0x12\n"      // Action 0x12 = 2D Render pass (byte comparison)
         "jne 1f\n"
         "ret\n"                               // Suppress car navi / vehicle radar rendering
         "1:\n"
@@ -1163,7 +1163,7 @@ static void DrawFreeCamSettingsWindow() {
         return;
     }
 
-    ImGui::Text("FreeCam v1.2.3 (Official Dear ImGui C++)");
+    ImGui::Text("FreeCam v1.2.4 (Official Dear ImGui C++)");
 
     if (ImGui::Button("Save to INI")) {
         SaveConfig();
@@ -1301,7 +1301,7 @@ static void DrawFreeCamSettingsWindow() {
 
         if (ImGui::BeginTabItem("About")) {
             ImGui::SeparatorText("Deadly Premonition FreeCam Mod");
-            ImGui::Text("Version: 1.2.3");
+            ImGui::Text("Version: 1.2.4");
             ImGui::Text("UI Backend: Dear ImGui C++ Engine (Zero-CRT x86)");
             ImGui::TextDisabled("Free Camera, York Teleportation & HUD Suppression Plugin");
             ImGui::EndTabItem();
